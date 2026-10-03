@@ -1,0 +1,43 @@
+# Put this file into YOUR fork of confeden/Antigravity at:
+#   .github/workflows/build-windows.yml
+# Then: Actions tab -> "build-windows" -> Run workflow.
+# The exe is built by GitHub from the public source only (no private relay).
+name: build-windows
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Confirm no private relay files are present
+        shell: pwsh
+        run: |
+          if (Test-Path src/relay.rs) { throw "src/relay.rs present - not a public build" }
+          if (Test-Path .relay_key)   { throw ".relay_key present - not a public build" }
+          "OK: public-source build (DNS route only)"
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Build
+        run: cargo build --release --locked
+
+      - name: SHA-256
+        shell: pwsh
+        run: |
+          $h = (Get-FileHash target/release/ag_unlocker.exe -Algorithm SHA256).Hash
+          "SHA256: $h" | Tee-Object -FilePath target/release/SHA256.txt
+          "Commit: $env:GITHUB_SHA" | Add-Content target/release/SHA256.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ag_unlocker-public-build
+          path: |
+            target/release/ag_unlocker.exe
+            target/release/SHA256.txt
